@@ -1,0 +1,120 @@
+# Reusable CI for a Go MCP server shipped as a Claude plugin. A consuming
+# repository calls it from its own ci.yml:
+#
+#   jobs:
+#     ci:
+#       uses: exomind-tmi/mcp-plugin-kit/.github/workflows/go-ci.yml@main
+#       permissions:
+#         contents: read
+#
+# The repository needs mcp-plugin.env at its root (see scripts/lib.sh). The kit
+# itself is checked out at the same ref as this workflow unless kit-ref says
+# otherwise: pin both to a tag once the kit has releases.
+name: Go MCP CI
+
+on:
+  workflow_call:
+    inputs:
+      kit-ref:
+        description: Ref of mcp-plugin-kit that supplies the scripts
+        type: string
+        default: main
+      race-packages:
+        description: Packages for go test -race (it needs cgo)
+        type: string
+        default: ./...
+      notices:
+        description: Check that THIRD_PARTY_NOTICES.md is generated from go.mod; false for a repository with its own notices script
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: exomind-tmi/mcp-plugin-kit
+          ref: ${{ inputs.kit-ref }}
+          path: .mcp-plugin-kit
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      # The race detector needs cgo: both runners ship a C compiler.
+      - name: go test -race
+        run: go test -race ${{ inputs.race-packages }}
+      - name: Cross builds
+        run: VERSION=v0.0.0-ci .mcp-plugin-kit/scripts/build.sh
+      - name: Launchers are current, modes and binaries are right, the plugin packs as text only
+        run: .mcp-plugin-kit/scripts/check.sh
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: exomind-tmi/mcp-plugin-kit
+          ref: ${{ inputs.kit-ref }}
+          path: .mcp-plugin-kit
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: THIRD_PARTY_NOTICES.md is up to date
+        if: ${{ inputs.notices }}
+        run: .mcp-plugin-kit/scripts/notices.sh --check
+      - name: shellcheck
+        run: |
+          source mcp-plugin.env
+          shellcheck "plugin/scripts/launch-$SERVER" .mcp-plugin-kit/scripts/*.sh
+
+  powershell:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Windows PowerShell 5.1 is what the launcher runs under on users' PCs; it
+      # reads BOM-less scripts in the ANSI code page, hence the ASCII check.
+      - name: launch.ps1 is ASCII and parses in Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $path = (Resolve-Path plugin/scripts/launch.ps1).Path
+          $bytes = [IO.File]::ReadAllBytes($path)
+          if ($bytes | Where-Object { $_ -gt 127 }) { throw "$path has non-ASCII bytes" }
+          $errors = $null
+          $null = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+      - name: PSScriptAnalyzer
+        shell: powershell
+        run: |
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force | Out-Null
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Repository PSGallery -Scope CurrentUser -Force
+          $found = Invoke-ScriptAnalyzer -Path plugin/scripts/launch.ps1 -Severity Information, Warning, Error
+          $found | Format-Table -AutoSize Line, Severity, RuleName, Message | Out-String -Width 200
+          if ($found) { exit 1 }
