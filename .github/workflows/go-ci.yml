@@ -90,7 +90,7 @@ jobs:
       - name: shellcheck
         run: |
           source mcp-plugin.env
-          shellcheck "plugin/scripts/launch-$SERVER" .mcp-plugin-kit/scripts/*.sh
+          shellcheck "plugin/scripts/launch-$SERVER"
 
   powershell:
     runs-on: windows-latest

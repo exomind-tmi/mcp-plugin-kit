@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034 # the variables are read by the scripts that source this file
 # Sourced by the kit's scripts: finds the consuming repository, reads its
 # mcp-plugin.env and derives the names the scripts share. Not run on its own.
 #
