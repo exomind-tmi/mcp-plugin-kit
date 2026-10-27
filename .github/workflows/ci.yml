@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: shellcheck -x scripts/*.sh
+      - run: shellcheck -x -P SCRIPTDIR scripts/*.sh
       - name: Scripts are executable in git
         run: |
           bad=$(git ls-files -s 'scripts/*.sh' | awk '$1 != "100755" { print $4 }')
