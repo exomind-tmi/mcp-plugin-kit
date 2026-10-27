@@ -52,4 +52,12 @@ put plugin/release.json <<'JSON'
 }
 JSON
 
+# Line endings: the Linux launcher must stay LF on every checkout; the Windows ones may be CRLF.
+put .gitattributes <<GIT
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+plugin/scripts/launch-$SERVER text eol=lf
+GIT
+
 "$KIT/scripts/render.sh"

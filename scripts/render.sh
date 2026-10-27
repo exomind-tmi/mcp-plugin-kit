@@ -29,7 +29,8 @@ chmod 0755 "$out/launch-$SERVER"
 
 if ((check)); then
   for f in "launch-$SERVER" "launch-$SERVER.cmd" launch.ps1; do
-    cmp -s "$out/$f" "plugin/scripts/$f" ||
+    # A Windows checkout may turn LF into CRLF: that is not staleness.
+    cmp -s <(tr -d '\r' <"$out/$f") <(tr -d '\r' <"plugin/scripts/$f") ||
       { echo "render.sh: plugin/scripts/$f is stale, run the kit's scripts/render.sh and commit" >&2; exit 1; }
   done
   echo "launchers are up to date"

@@ -35,7 +35,7 @@ PLATFORMS="windows-amd64 linux-amd64"   # default
 LICENSE_ID=0BSD                    # SPDX id, for the notices (optional)
 ```
 
-1. `scripts/init.sh` writes `plugin/.claude-plugin/plugin.json`, `plugin/.mcp.json` and a not-yet-released
+1. `scripts/init.sh` writes `.gitattributes` (line endings), `plugin/.claude-plugin/plugin.json`, `plugin/.mcp.json` and a not-yet-released
    `plugin/release.json`, and renders the launchers. Files that exist are kept.
 2. The marketplace installs the plugin straight from the repository, so the rendered launchers in
    `plugin/scripts/` are committed. `scripts/render.sh` renders them again; CI fails when they are stale.
